@@ -60,14 +60,7 @@ const FARM_INFO_QUESTIONS = [
 ];
 
 const openai = new OpenAI({
-  apiKey:
-    "DWXVJ9PhzqXbwdJMicfbOAjY4aHKb7Mvjiy0qukDrccEAviT9q67JQQJ99BAACYeBjFXJ3w3AAABACOG0CsL",
-  baseURL:
-    "https://api.azure.com/openai/deployments/gpt-4/chat/completions?api-version=2023-12-01-preview",
-  defaultHeaders: {
-    "api-key":
-      "DWXVJ9PhzqXbwdJMicfbOAjY4aHKb7Mvjiy0qukDrccEAviT9q67JQQJ99BAACYeBjFXJ3w3AAABACOG0CsL",
-  },
+  apiKey: process.env.EXPO_PUBLIC_OPENAI_API_KEY,
   dangerouslyAllowBrowser: true,
 });
 
@@ -279,7 +272,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
           try {
             const completion = await openai.chat.completions.create({
-              model: "gpt-4-vision",
+              model: "gpt-4o",
               messages: [
                 { role: "system", content: systemMessage },
                 { role: "user", content: userMessage },
@@ -422,7 +415,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
       try {
         const completion = await openai.chat.completions.create({
-          model: "gpt-4-vision",
+          model: "gpt-4o",
           messages: [
             { role: "system", content: systemMessage },
             { role: "user", content: userMessage },
@@ -511,7 +504,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
       // Get response from OpenAI
       const completion = await openai.chat.completions.create({
-        model: image ? "gpt-4-vision" : "gpt-4",
+        model: image ? "gpt-4o" : "gpt-4o",
         messages: finalMessages.map((msg) => {
           const baseMessage = {
             role: msg.role,
