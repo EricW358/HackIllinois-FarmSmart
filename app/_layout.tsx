@@ -1,60 +1,62 @@
-import { Slot, Stack } from "expo-router";
-import { useEffect, useState } from "react";
+import { Stack } from "expo-router";
 import { PaperProvider } from "react-native-paper";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { theme } from "../constants/theme";
-import { useAuth } from "../hooks/useAuth";
-import { View } from "react-native";
-import { ActivityIndicator } from "react-native-paper";
+import { theme } from "../theme";
+import { View, StyleSheet } from "react-native";
 
 export default function RootLayout() {
-  const { loading } = useAuth();
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    if (!loading) {
-      setIsReady(true);
-    }
-  }, [loading]);
-
-  if (!isReady) {
-    return (
-      <PaperProvider theme={theme}>
-        <SafeAreaProvider>
-          <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
-        </SafeAreaProvider>
-      </PaperProvider>
-    );
-  }
-
   return (
     <PaperProvider theme={theme}>
-      <SafeAreaProvider>
-        <Stack>
+      <View style={styles.container}>
+        <Stack
+          screenOptions={{
+            headerStyle: {
+              backgroundColor: theme.colors.surface,
+            },
+            headerTitleStyle: {
+              color: theme.colors.onSurface,
+              fontSize: 18,
+              fontWeight: "600",
+            },
+            headerTitleAlign: "center",
+            headerShadowVisible: false,
+            headerBackTitle: "",
+            headerTintColor: theme.colors.primary,
+            headerShown: false,
+            contentStyle: {
+              backgroundColor: theme.colors.background,
+            },
+          }}
+        >
           <Stack.Screen
-            name="index"
+            name="(auth)/login"
             options={{
+              headerTitle: "Sign In",
+              headerShown: false,
+            }}
+            
+          />
+          <Stack.Screen
+            name="(auth)/register"
+            options={{
+              headerTitle: "Create Account",
               headerShown: false,
             }}
           />
           <Stack.Screen
-            name="(auth)"
+            name="(main)/chat/index"
             options={{
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="(main)"
-            options={{
-              headerShown: false,
+              headerTitle: "FarmSmart",
             }}
           />
         </Stack>
-      </SafeAreaProvider>
+      </View>
     </PaperProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+});

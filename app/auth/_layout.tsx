@@ -12,7 +12,7 @@ export default function AuthLayout() {
         headerTitleStyle: {
           fontWeight: "bold",
         },
-        headerShown: true,
+        headerShown: false,
       }}
     />
   );

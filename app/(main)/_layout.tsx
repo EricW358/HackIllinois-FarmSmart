@@ -26,6 +26,7 @@ export default function MainLayout() {
         headerTitleStyle: {
           color: theme.colors.onPrimary,
         },
+        headerTitleAlign: "center",
       }}
     >
       <Stack.Screen

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Dimensions,
 } from "react-native";
 import {
   Text,
@@ -13,14 +14,28 @@ import {
   IconButton,
   Surface,
   ActivityIndicator,
+  useTheme,
+  MD3Theme,
 } from "react-native-paper";
 import * as ImagePicker from "expo-image-picker";
 import { useChat } from "../../../hooks/useChat";
+import { BlurView } from "expo-blur";
+
+const { width } = Dimensions.get("window");
 
 export default function ChatScreen() {
+  const theme = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [input, setInput] = useState("");
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const { conversation, loading, error, sendMessage } = useChat();
+  const {
+    conversation,
+    loading,
+    error,
+    handleSendMessage,
+    createConversation,
+    isCollectingFarmInfo,
+  } = useChat();
   const scrollViewRef = useRef<ScrollView>(null);
 
   const pickImage = async () => {
@@ -45,16 +60,14 @@ export default function ChatScreen() {
     }
   };
 
-  const handleSend = async () => {
+  const handleSubmit = async () => {
     if (input.trim() || selectedImage) {
-      const currentImage = selectedImage;
-      setSelectedImage(null);
-      await sendMessage(
-        input.trim() || "Analyze this image",
-        currentImage || undefined
-      );
+      const messageText = input.trim();
+      const messageImage = selectedImage;
       setInput("");
+      setSelectedImage(null);
       scrollViewRef.current?.scrollToEnd({ animated: true });
+      await handleSendMessage(messageText, messageImage || undefined);
     }
   };
 
@@ -67,14 +80,17 @@ export default function ChatScreen() {
 
   const renderMessage = (message: any) => (
     <Surface
-      key={message.content}
+      key={`${message.content}-${message.timestamp.getTime()}`}
       style={[
         styles.messageBubble,
         message.role === "user" ? styles.userMessage : styles.assistantMessage,
+        { elevation: 2 },
       ]}
     >
       {message.image && (
-        <Image source={{ uri: message.image }} style={styles.messageImage} />
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: message.image }} style={styles.messageImage} />
+        </View>
       )}
       <Text
         style={[
@@ -102,7 +118,7 @@ export default function ChatScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
       keyboardVerticalOffset={90}
     >
       <ScrollView
@@ -111,137 +127,352 @@ export default function ChatScreen() {
         contentContainerStyle={styles.messagesContent}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd()}
       >
+        {conversation.messages.length === 0 && (
+          <View style={styles.emptyStateContainer}>
+            <Text style={styles.emptyStateText}>
+              Welcome to FarmSmart! Ask me anything about farming, crop
+              management, or upload an image for plant analysis.
+            </Text>
+          </View>
+        )}
         {conversation.messages.map(renderMessage)}
-        {loading && <ActivityIndicator style={styles.loading} size="small" />}
-        {error && <Text style={styles.error}>{error}</Text>}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="small"
+              color={theme.colors.primary}
+              style={styles.loading}
+            />
+            <Text style={styles.loadingText}>Thinking...</Text>
+          </View>
+        )}
+        {error && (
+          <Surface style={styles.errorContainer}>
+            <Text style={styles.error}>{error}</Text>
+          </Surface>
+        )}
       </ScrollView>
 
       {selectedImage && (
-        <View style={styles.selectedImageContainer}>
+        <BlurView intensity={100} style={styles.selectedImageContainer}>
           <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
           <IconButton
-            icon="close"
-            size={20}
+            icon="close-circle"
+            size={24}
             onPress={() => setSelectedImage(null)}
             style={styles.removeImageButton}
           />
-        </View>
+        </BlurView>
       )}
 
-      <View style={styles.inputContainer}>
-        <IconButton
-          icon="camera"
-          size={24}
-          onPress={pickImage}
-          style={styles.imageButton}
-        />
-        <TextInput
-          value={input}
-          onChangeText={setInput}
-          placeholder="Type a message..."
-          style={styles.input}
-          multiline
-        />
-        <IconButton
-          icon="send"
-          size={24}
-          onPress={handleSend}
-          disabled={loading || (!input.trim() && !selectedImage)}
-        />
-      </View>
+      <Surface style={styles.inputSurface} elevation={4}>
+        <View style={styles.inputContainer}>
+          <IconButton
+            icon="camera"
+            size={24}
+            onPress={pickImage}
+            style={styles.imageButton}
+            iconColor={theme.colors.primary}
+          />
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Message FarmSmart..."
+            style={styles.input}
+            multiline
+            maxLength={1000}
+            dense
+          />
+          <IconButton
+            icon="send"
+            size={24}
+            onPress={handleSubmit}
+            disabled={loading || (!input.trim() && !selectedImage)}
+            iconColor={
+              loading || (!input.trim() && !selectedImage)
+                ? theme.colors.outline
+                : theme.colors.primary
+            }
+          />
+        </View>
+      </Surface>
     </KeyboardAvoidingView>
   );
 }
 
+const createStyles = (theme: MD3Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    messagesContainer: {
+      flex: 1,
+    },
+    messagesContent: {
+      padding: 16,
+      paddingBottom: 32,
+    },
+    messageBubble: {
+      padding: 16,
+      marginVertical: 4,
+      maxWidth: "85%",
+      borderRadius: 20,
+    },
+    userMessage: {
+      alignSelf: "flex-end",
+      backgroundColor: theme.colors.primary,
+    },
+    assistantMessage: {
+      alignSelf: "flex-start",
+      backgroundColor: theme.colors.surfaceVariant,
+    },
+    messageText: {
+      fontSize: 16,
+      lineHeight: 24,
+    },
+    userMessageText: {
+      color: theme.colors.onPrimary,
+    },
+    assistantMessageText: {
+      color: theme.colors.onSurfaceVariant,
+    },
+    imageContainer: {
+      marginBottom: 12,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: theme.colors.surface,
+    },
+    messageImage: {
+      width: "100%",
+      height: 200,
+      borderRadius: 12,
+    },
+    inputSurface: {
+      backgroundColor: theme.colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255, 255, 255, 0.05)",
+      marginHorizontal: 16,
+      marginBottom: 16,
+      borderRadius: 24,
+      elevation: 4,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 8,
+      paddingHorizontal: 16,
+    },
+    input: {
+      flex: 1,
+      marginHorizontal: 8,
+      maxHeight: 120,
+      backgroundColor: "transparent",
+      fontSize: 16,
+      color: theme.colors.onSurface,
+    },
+    imageButton: {
+      margin: 0,
+    },
+    selectedImageContainer: {
+      padding: 12,
+      backgroundColor: theme.colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255, 255, 255, 0.05)",
+      flexDirection: "row",
+      alignItems: "center",
+      marginHorizontal: 16,
+      marginBottom: 8,
+      borderRadius: 16,
+    },
+    selectedImage: {
+      width: 60,
+      height: 60,
+      borderRadius: 8,
+    },
+    removeImageButton: {
+      position: "absolute",
+      top: -8,
+      right: -8,
+      margin: 0,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+    },
+    loadingContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 16,
+    },
+    loading: {
+      marginRight: 8,
+    },
+    loadingText: {
+      color: theme.colors.onSurfaceVariant,
+      fontSize: 14,
+    },
+    errorContainer: {
+      margin: 16,
+      padding: 16,
+      backgroundColor: theme.colors.errorContainer,
+      borderRadius: 12,
+    },
+    error: {
+      color: theme.colors.onErrorContainer,
+      textAlign: "center",
+    },
+    timestamp: {
+      fontSize: 11,
+      marginTop: 6,
+      alignSelf: "flex-end",
+    },
+    userTimestamp: {
+      color: "rgba(255, 255, 255, 0.7)",
+    },
+    assistantTimestamp: {
+      color: theme.colors.onSurfaceVariant,
+      opacity: 0.7,
+    },
+    emptyStateContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 32,
+      opacity: 0.7,
+    },
+    emptyStateText: {
+      textAlign: "center",
+      fontSize: 16,
+      color: theme.colors.onSurfaceVariant,
+      lineHeight: 24,
+    },
+  });
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
   },
   messagesContainer: {
     flex: 1,
   },
   messagesContent: {
     padding: 16,
+    paddingBottom: 32,
   },
   messageBubble: {
-    padding: 12,
+    padding: 16,
     marginVertical: 4,
-    maxWidth: "80%",
-    borderRadius: 16,
+    maxWidth: "85%",
+    borderRadius: 20,
   },
   userMessage: {
     alignSelf: "flex-end",
-    backgroundColor: "#007AFF",
   },
   assistantMessage: {
     alignSelf: "flex-start",
-    backgroundColor: "white",
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 24,
   },
   userMessageText: {
-    color: "white",
+    color: "#FFFFFF",
   },
   assistantMessageText: {
-    color: "#333",
+    color: "#000000",
+  },
+  imageContainer: {
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: "hidden",
   },
   messageImage: {
     width: "100%",
     height: 200,
-    borderRadius: 8,
-    marginBottom: 8,
+    borderRadius: 12,
+  },
+  inputSurface: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 24,
+    elevation: 4,
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     padding: 8,
-    backgroundColor: "white",
+    paddingHorizontal: 16,
   },
   input: {
     flex: 1,
     marginHorizontal: 8,
-    maxHeight: 100,
+    maxHeight: 120,
     backgroundColor: "transparent",
+    fontSize: 16,
   },
   imageButton: {
     margin: 0,
   },
   selectedImageContainer: {
-    padding: 8,
-    backgroundColor: "white",
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
   },
   selectedImage: {
-    width: 100,
-    height: 100,
+    width: 60,
+    height: 60,
     borderRadius: 8,
   },
   removeImageButton: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: -8,
+    right: -8,
     margin: 0,
+    borderRadius: 12,
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
   },
   loading: {
-    marginVertical: 8,
+    marginRight: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  errorContainer: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
   },
   error: {
-    color: "red",
     textAlign: "center",
-    marginVertical: 8,
   },
   timestamp: {
-    fontSize: 10,
-    marginTop: 4,
+    fontSize: 11,
+    marginTop: 6,
     alignSelf: "flex-end",
   },
   userTimestamp: {
     color: "rgba(255, 255, 255, 0.7)",
   },
   assistantTimestamp: {
-    color: "rgba(0, 0, 0, 0.5)",
+    opacity: 0.7,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+    opacity: 0.7,
+  },
+  emptyStateText: {
+    textAlign: "center",
+    fontSize: 16,
+    lineHeight: 24,
   },
 });
