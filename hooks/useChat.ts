@@ -7,6 +7,7 @@ export interface Message {
   id?: string;
   role: "user" | "assistant";
   content: string;
+  image?: string;
   timestamp: Date;
 }
 
@@ -26,8 +27,13 @@ const openai = new OpenAI({
 
 export function useChat(conversationId?: string) {
   const [conversation, setConversation] = useState<Conversation>({
+    id: "",
+    title: "",
     messages: [],
-  } as Conversation);
+    created_at: new Date(),
+    updated_at: new Date(),
+    is_archived: false,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
@@ -102,43 +108,91 @@ export function useChat(conversationId?: string) {
   };
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, image?: string) => {
       try {
         setLoading(true);
         setError(null);
+
+        console.log("Sending message with content:", content);
+        if (image) {
+          console.log("Image URL format:", image.substring(0, 50) + "...");
+        }
 
         // Add user message to conversation
         const userMessage: Message = {
           role: "user",
           content,
+          image,
           timestamp: new Date(),
         };
 
+        const updatedMessages = [...conversation.messages, userMessage];
         setConversation((prev) => ({
           ...prev,
-          messages: [...prev.messages, userMessage],
+          messages: updatedMessages,
         }));
 
-        // Prepare conversation history for OpenAI
-        const messages = [
+        // Prepare messages for OpenAI
+        const apiMessages = updatedMessages.map((msg) => {
+          if (msg.image) {
+            return {
+              role: msg.role,
+              content: [
+                {
+                  type: "text",
+                  text: msg.content,
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: msg.image,
+                    detail: "high",
+                  },
+                },
+              ],
+            };
+          }
+          return {
+            role: msg.role,
+            content: msg.content,
+          };
+        });
+
+        // Add system message and current message
+        const finalMessages = [
           {
             role: "system",
             content:
-              "You are a knowledgeable farming assistant. Help users with questions about agriculture, crop management, soil health, and sustainable farming practices. Provide practical, actionable advice based on scientific principles.",
+              "You are a knowledgeable farming assistant with expertise in plant and crop analysis. When provided with images, analyze them carefully and provide detailed insights about plant health, potential issues, and recommendations. Help users with questions about agriculture, crop management, soil health, and sustainable farming practices. Provide practical, actionable advice based on scientific principles.",
           },
-          ...conversation.messages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-          { role: "user", content },
+          ...apiMessages,
         ];
+
+        console.log("API Request configuration:", {
+          model: image ? "gpt-4o" : "gpt-4o-mini",
+          messageCount: finalMessages.length,
+          hasImage: !!image,
+          apiKeyPrefix:
+            process.env.EXPO_PUBLIC_OPENAI_API_KEY?.substring(0, 10) + "...",
+        });
 
         // Get response from OpenAI
         const completion = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: messages as any,
+          model: image ? "gpt-4o" : "gpt-4o-mini",
+          messages: finalMessages as any,
+          max_tokens: 1000,
           temperature: 0.7,
-          max_tokens: 500,
+          presence_penalty: 0,
+          frequency_penalty: 0,
+          top_p: 1,
+          stream: false,
+          n: 1,
+        });
+
+        console.log("OpenAI Response:", {
+          status: "success",
+          messageContent:
+            completion.choices[0].message?.content?.substring(0, 50) + "...",
         });
 
         const assistantMessage: Message = {
@@ -158,10 +212,18 @@ export function useChat(conversationId?: string) {
         // Store conversation in Supabase (optional, implement later)
         // await storeConversation(userMessage, assistantMessage);
       } catch (err) {
-        console.error("Error in chat:", err);
+        console.error("Error details:", err);
+        if (err instanceof Error) {
+          console.error("Error name:", err.name);
+          console.error("Error message:", err.message);
+          if ("status" in err) {
+            console.error("Error status:", (err as any).status);
+          }
+          console.error("Error stack:", err.stack);
+        }
         setError(
           err instanceof Error
-            ? err.message
+            ? `Error: ${err.message}`
             : "An error occurred while processing your message"
         );
       } finally {

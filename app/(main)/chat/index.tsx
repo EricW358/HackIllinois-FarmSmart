@@ -1,44 +1,81 @@
+import React, { useState, useRef } from "react";
 import {
-  StyleSheet,
   View,
+  StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
 import {
   Text,
   TextInput,
   IconButton,
+  Surface,
   ActivityIndicator,
 } from "react-native-paper";
-import { useState, useRef } from "react";
-import { theme } from "../../../constants/theme";
-import { useChat, Message } from "../../../hooks/useChat";
+import * as ImagePicker from "expo-image-picker";
+import { useChat } from "../../../hooks/useChat";
 
 export default function ChatScreen() {
+  const [input, setInput] = useState("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { conversation, loading, error, sendMessage } = useChat();
-  const [inputMessage, setInputMessage] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleSend = async () => {
-    if (!inputMessage.trim() || loading) return;
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    const content = inputMessage.trim();
-    setInputMessage("");
-    await sendMessage(content);
+    if (status !== "granted") {
+      alert("Sorry, we need camera roll permissions to make this work!");
+      return;
+    }
 
-    // Scroll to bottom after sending message
-    scrollViewRef.current?.scrollToEnd({ animated: true });
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+      base64: true,
+    });
+
+    if (!result.canceled) {
+      const base64Image = `data:image/jpeg;base64,${result.assets[0].base64}`;
+      setSelectedImage(base64Image);
+    }
   };
 
-  const renderMessage = (message: Message) => (
-    <View
-      key={message.timestamp.getTime()}
+  const handleSend = async () => {
+    if (input.trim() || selectedImage) {
+      const currentImage = selectedImage;
+      setSelectedImage(null);
+      await sendMessage(
+        input.trim() || "Analyze this image",
+        currentImage || undefined
+      );
+      setInput("");
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const renderMessage = (message: any) => (
+    <Surface
+      key={message.content}
       style={[
-        styles.messageBox,
+        styles.messageBubble,
         message.role === "user" ? styles.userMessage : styles.assistantMessage,
       ]}
     >
+      {message.image && (
+        <Image source={{ uri: message.image }} style={styles.messageImage} />
+      )}
       <Text
         style={[
           styles.messageText,
@@ -49,56 +86,67 @@ export default function ChatScreen() {
       >
         {message.content}
       </Text>
-      <Text style={styles.timestamp}>
-        {message.timestamp.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}
+      <Text
+        style={[
+          styles.timestamp,
+          message.role === "user"
+            ? styles.userTimestamp
+            : styles.assistantTimestamp,
+        ]}
+      >
+        {formatTime(message.timestamp)}
       </Text>
-    </View>
+    </Surface>
   );
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
+      keyboardVerticalOffset={90}
     >
-      <View style={styles.header}>
-        <Text variant="titleLarge">Smart Farming Assistant</Text>
-      </View>
-
       <ScrollView
         ref={scrollViewRef}
         style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesList}
+        contentContainerStyle={styles.messagesContent}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd()}
       >
         {conversation.messages.map(renderMessage)}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          </View>
-        )}
-        {error && <Text style={styles.errorText}>Error: {error}</Text>}
+        {loading && <ActivityIndicator style={styles.loading} size="small" />}
+        {error && <Text style={styles.error}>{error}</Text>}
       </ScrollView>
 
+      {selectedImage && (
+        <View style={styles.selectedImageContainer}>
+          <Image source={{ uri: selectedImage }} style={styles.selectedImage} />
+          <IconButton
+            icon="close"
+            size={20}
+            onPress={() => setSelectedImage(null)}
+            style={styles.removeImageButton}
+          />
+        </View>
+      )}
+
       <View style={styles.inputContainer}>
+        <IconButton
+          icon="camera"
+          size={24}
+          onPress={pickImage}
+          style={styles.imageButton}
+        />
         <TextInput
-          mode="outlined"
-          value={inputMessage}
-          onChangeText={setInputMessage}
-          placeholder="Ask me anything about farming..."
+          value={input}
+          onChangeText={setInput}
+          placeholder="Type a message..."
           style={styles.input}
           multiline
-          maxLength={500}
-          disabled={loading}
-          right={
-            <TextInput.Icon
-              icon="send"
-              disabled={!inputMessage.trim() || loading}
-              onPress={handleSend}
-            />
-          }
+        />
+        <IconButton
+          icon="send"
+          size={24}
+          onPress={handleSend}
+          disabled={loading || (!input.trim() && !selectedImage)}
         />
       </View>
     </KeyboardAvoidingView>
@@ -108,64 +156,92 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.outline,
-    alignItems: "center",
+    backgroundColor: "#f5f5f5",
   },
   messagesContainer: {
     flex: 1,
   },
-  messagesList: {
+  messagesContent: {
     padding: 16,
-    gap: 16,
   },
-  messageBox: {
-    maxWidth: "80%",
+  messageBubble: {
     padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
+    marginVertical: 4,
+    maxWidth: "80%",
+    borderRadius: 16,
   },
   userMessage: {
-    backgroundColor: theme.colors.primary,
     alignSelf: "flex-end",
+    backgroundColor: "#007AFF",
   },
   assistantMessage: {
-    backgroundColor: theme.colors.surfaceVariant,
     alignSelf: "flex-start",
+    backgroundColor: "white",
   },
   messageText: {
     fontSize: 16,
   },
   userMessageText: {
-    color: theme.colors.onPrimary,
+    color: "white",
   },
   assistantMessageText: {
-    color: theme.colors.onSurfaceVariant,
+    color: "#333",
   },
-  timestamp: {
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.7,
-  },
-  loadingContainer: {
-    padding: 16,
-    alignItems: "center",
+  messageImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   inputContainer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.outline,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    backgroundColor: "white",
   },
   input: {
+    flex: 1,
+    marginHorizontal: 8,
+    maxHeight: 100,
     backgroundColor: "transparent",
   },
-  errorText: {
-    color: theme.colors.error,
+  imageButton: {
+    margin: 0,
+  },
+  selectedImageContainer: {
+    padding: 8,
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+  },
+  selectedImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removeImageButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    margin: 0,
+  },
+  loading: {
+    marginVertical: 8,
+  },
+  error: {
+    color: "red",
     textAlign: "center",
-    padding: 16,
+    marginVertical: 8,
+  },
+  timestamp: {
+    fontSize: 10,
+    marginTop: 4,
+    alignSelf: "flex-end",
+  },
+  userTimestamp: {
+    color: "rgba(255, 255, 255, 0.7)",
+  },
+  assistantTimestamp: {
+    color: "rgba(0, 0, 0, 0.5)",
   },
 });
