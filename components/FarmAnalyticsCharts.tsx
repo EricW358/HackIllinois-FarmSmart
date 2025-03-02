@@ -34,11 +34,37 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [tooltipData, setTooltipData] = useState<TooltipData | null>(null);
 
-  const chartColors = [
-    "rgba(43, 63, 229, 0.8)",
-    "rgba(250, 192, 19, 0.8)",
-    "rgba(253, 135, 135, 0.8)",
+  // Base colors with good contrast
+  const baseColors = [
+    "rgba(43, 63, 229, 0.8)", // Blue
+    "rgba(250, 192, 19, 0.8)", // Yellow
+    "rgba(253, 135, 135, 0.8)", // Pink
+    "rgba(75, 192, 192, 0.8)", // Teal
+    "rgba(153, 102, 255, 0.8)", // Purple
+    "rgba(255, 159, 64, 0.8)", // Orange
+    "rgba(231, 233, 237, 0.8)", // Grey
+    "rgba(102, 255, 102, 0.8)", // Green
   ];
+
+  // Generate colors for any number of data points
+  const generateColors = (count: number): string[] => {
+    if (count <= baseColors.length) {
+      return baseColors.slice(0, count);
+    }
+
+    // If we need more colors, generate them by adjusting hue
+    const additionalColors = Array.from(
+      { length: count - baseColors.length },
+      (_, index) => {
+        const hue = (360 / count) * (baseColors.length + index);
+        return `hsla(${hue}, 70%, 60%, 0.8)`;
+      }
+    );
+
+    return [...baseColors, ...additionalColors];
+  };
+
+  const chartColors = generateColors(data.tillageNames.length);
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,

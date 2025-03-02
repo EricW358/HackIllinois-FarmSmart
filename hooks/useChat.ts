@@ -4,6 +4,7 @@ import { useAuth } from "./useAuth";
 import OpenAI from "openai";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PREDEFINED_FARMS } from "../data/farms";
+import { FarmAnalyticsData } from "../components/FarmAnalyticsCharts";
 
 export interface FarmInfo {
   location: string;
@@ -190,6 +191,144 @@ export function useChat(conversationId?: string) {
     }
   };
 
+  const parseAnalyticsData = (content: string): FarmAnalyticsData | null => {
+    try {
+      // Extract profits section
+      const profitsMatch = content.match(/Profits: (.*?)(?=\n|$)/);
+      if (!profitsMatch) return null;
+
+      // Parse profits section
+      const profitsStr = profitsMatch[1];
+      const profitPairs = profitsStr
+        .split(",")
+        .map((pair) => {
+          const [nameStr, profitStr] = pair.split(":").map((s) => s.trim());
+          // Extract numbers more reliably using regex
+          const profitMatch = profitStr.match(
+            /\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/
+          );
+          const profit = profitMatch
+            ? parseFloat(profitMatch[1].replace(/,/g, ""))
+            : 0;
+
+          return {
+            name: nameStr.replace(/"/g, "").trim(), // Remove any quotes and trim
+            profit: isNaN(profit) ? 0 : profit, // Ensure we have a valid number
+          };
+        })
+        .filter((pair) => pair.name && pair.profit > 0); // Filter out invalid entries
+
+      if (profitPairs.length === 0) return null;
+
+      // Extract external tool section
+      const externalToolMatch = content.match(/External Tool: (.*?)(?=\n|$)/);
+      if (!externalToolMatch) return null;
+
+      // Parse external tool data more carefully
+      const externalToolStr = externalToolMatch[1];
+      const costMatch =
+        externalToolStr.match(/\$?(\d+(?:,\d{3})*(?:\.\d{2})?)/g) || [];
+      const numbers = costMatch
+        .map((str) => parseFloat(str.replace(/[$,]/g, "")))
+        .filter((num) => !isNaN(num) && num > 0);
+
+      const [toolCost, predictedProfit, weeklyProfitRate] = numbers;
+
+      // Calculate projected profits based on weekly profit rate
+      const baseProfit = Math.max(...profitPairs.map((p) => p.profit));
+      const weeklyRate = weeklyProfitRate || baseProfit * 0.1; // Use 10% of base profit if no rate provided
+
+      const projectedProfits = Array(6)
+        .fill(0)
+        .map((_, i) => {
+          return Math.round(baseProfit + weeklyRate * (i + 1));
+        });
+
+      // Return formatted analytics data
+      return {
+        tillageNames: profitPairs.map((p) => p.name),
+        profits: profitPairs.map((p) => Math.round(p.profit)),
+        revenue: profitPairs.map((p) => Math.round(p.profit * 1.5)), // Estimate revenue as 150% of profit
+        projectedProfits: projectedProfits,
+        breakEvenPoint: Math.round(toolCost || Math.max(...projectedProfits)),
+      };
+    } catch (error) {
+      console.error("Error parsing analytics data:", error);
+      return null;
+    }
+  };
+
+  const generateChartData = async (
+    analysisResponse: string
+  ): Promise<FarmAnalyticsData | null> => {
+    try {
+      const systemMessage = `You are a data processing assistant. Based on the farming analysis below, generate ONLY numerical data for charts in exactly this format:
+{
+  "tillageNames": ["name1", "name2", ...],
+  "profits": [profit1, profit2, ...],
+  "revenue": [revenue1, revenue2, ...],
+  "projectedProfits": [month1, month2, month3, month4, month5, month6],
+  "breakEvenPoint": number
+}
+Use the exact tool names from the analysis, real profit numbers mentioned, and calculate revenue as 150% of profits. For projected profits, use the mentioned weekly profit rate to calculate 6 months of projections. The break-even point should be the tool cost mentioned.
+ONLY RESPOND WITH THE JSON DATA, NO OTHER TEXT.`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: analysisResponse },
+        ],
+        max_tokens: 500,
+        temperature: 0.1,
+      });
+
+      const jsonStr = completion.choices[0].message?.content || "";
+      console.log("Generated chart data:", jsonStr); // Add logging for debugging
+
+      try {
+        const data = JSON.parse(jsonStr);
+        // Validate the data structure
+        if (
+          !data.tillageNames ||
+          !data.profits ||
+          !data.revenue ||
+          !data.projectedProfits ||
+          !data.breakEvenPoint
+        ) {
+          console.error("Invalid data structure:", data);
+          return null;
+        }
+
+        // Ensure all arrays have values and numbers are valid
+        if (
+          data.tillageNames.length === 0 ||
+          data.profits.some(isNaN) ||
+          data.revenue.some(isNaN) ||
+          data.projectedProfits.some(isNaN) ||
+          isNaN(data.breakEvenPoint)
+        ) {
+          console.error("Invalid data values:", data);
+          return null;
+        }
+
+        return {
+          tillageNames: data.tillageNames,
+          profits: data.profits.map(Number),
+          revenue: data.revenue.map(Number),
+          projectedProfits: data.projectedProfits.map(Number),
+          breakEvenPoint: Number(data.breakEvenPoint),
+        };
+      } catch (parseError) {
+        console.error("Error parsing chart data JSON:", parseError);
+        return null;
+      }
+    } catch (error) {
+      console.error("Error generating chart data:", error);
+      return null;
+    }
+  };
+
   const handleFarmInfoResponse = async (content: string) => {
     const currentQuestion = FARM_INFO_QUESTIONS[currentQuestionIndex];
 
@@ -294,13 +433,9 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
                 completion.choices[0].message?.content ||
                 "Sorry, I could not generate a response.",
               timestamp: new Date(),
-              analyticsData: {
-                tillageNames: ["Tillage A", "Tillage B", "Tillage C"],
-                profits: [200, 300, 400],
-                revenue: [200, 300, 400],
-                projectedProfits: [200, 300, 400, 600, 800, 1000],
-                breakEvenPoint: 800,
-              },
+              analyticsData: await generateChartData(
+                completion.choices[0].message?.content || ""
+              ),
             };
 
             const thankYouMessage = {
@@ -335,6 +470,31 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
               ...prev,
               messages: [standardSystemMessage, ...prev.messages],
             }));
+
+            // Only add the response if we have valid data
+            if (specializedResponse.analyticsData) {
+              setConversation((prev) => ({
+                ...prev,
+                messages: [
+                  ...prev.messages,
+                  specializedResponse,
+                  thankYouMessage,
+                ],
+              }));
+            } else {
+              console.error("Failed to generate valid analytics data");
+              // Notify the user that there was an issue with data generation
+              const errorMessage = {
+                role: "assistant" as const,
+                content:
+                  "I analyzed your farm data but encountered an issue generating the analytics. Please try asking your question again.",
+                timestamp: new Date(),
+              };
+              setConversation((prev) => ({
+                ...prev,
+                messages: [...prev.messages, errorMessage],
+              }));
+            }
 
             return {
               role: "assistant" as const,
@@ -438,13 +598,9 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
             completion.choices[0].message?.content ||
             "Sorry, I could not generate a response.",
           timestamp: new Date(),
-          analyticsData: {
-            tillageNames: ["Tillage A", "Tillage B", "Tillage C"],
-            profits: [200, 300, 400],
-            revenue: [200, 300, 400],
-            projectedProfits: [200, 300, 400, 600, 800, 1000],
-            breakEvenPoint: 800,
-          },
+          analyticsData: await generateChartData(
+            completion.choices[0].message?.content || ""
+          ),
         };
 
         // Then add the thank you message
@@ -460,6 +616,27 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
           ...prev,
           messages: [...prev.messages, specializedResponse, thankYouMessage],
         }));
+
+        // Only add the response if we have valid data
+        if (specializedResponse.analyticsData) {
+          setConversation((prev) => ({
+            ...prev,
+            messages: [...prev.messages, specializedResponse, thankYouMessage],
+          }));
+        } else {
+          console.error("Failed to generate valid analytics data");
+          // Notify the user that there was an issue with data generation
+          const errorMessage = {
+            role: "assistant" as const,
+            content:
+              "I analyzed your farm data but encountered an issue generating the analytics. Please try asking your question again.",
+            timestamp: new Date(),
+          };
+          setConversation((prev) => ({
+            ...prev,
+            messages: [...prev.messages, errorMessage],
+          }));
+        }
 
         return specializedResponse;
       } catch (error) {
