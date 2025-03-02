@@ -11,6 +11,7 @@ FarmSmart is an AI-powered farming assistant application designed to help farmer
 - **Weather Insights**: Access real-time weather data and forecasts relevant to farming
 - **Satellite Mapping**: View satellite imagery of farm locations with the "@plot" command
 - **Image Analysis**: Upload images of crops or soil for AI analysis
+- **AI Pest and Disease Detection**: Identify plant diseases and pests from uploaded images with advanced AI analysis
 - **Markdown Formatting**: Clean, readable responses with proper formatting and highlighting
 - **Cross-Platform**: Works on iOS, Android, and Web platforms
 
@@ -69,6 +70,7 @@ Create a `.env` file in the root directory with the following variables:
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+EXPO_PUBLIC_OPENAI_API_KEY=your_openai_api_key
 ```
 
 ### 4. Run the Application
@@ -148,6 +150,15 @@ The analytics feature provides visual representations of farm data, including:
 ### Satellite Mapping
 
 Users can view satellite imagery of specific locations by using the `@plot` command followed by an address in the chat interface.
+
+### AI Pest and Disease Detection
+
+The application uses advanced AI models to:
+
+- Identify common crop diseases from uploaded images
+- Detect pest infestations and provide treatment recommendations
+- Analyze plant health and suggest preventative measures
+- Provide severity assessments and potential yield impact estimates
 
 ## Contributing
 
