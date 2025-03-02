@@ -294,6 +294,13 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
                 completion.choices[0].message?.content ||
                 "Sorry, I could not generate a response.",
               timestamp: new Date(),
+              analyticsData: {
+                tillageNames: ["Tillage A", "Tillage B", "Tillage C"],
+                profits: [200, 300, 400],
+                revenue: [200, 300, 400],
+                projectedProfits: [200, 300, 400, 600, 800, 1000],
+                breakEvenPoint: 800,
+              },
             };
 
             const thankYouMessage = {
@@ -431,6 +438,13 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
             completion.choices[0].message?.content ||
             "Sorry, I could not generate a response.",
           timestamp: new Date(),
+          analyticsData: {
+            tillageNames: ["Tillage A", "Tillage B", "Tillage C"],
+            profits: [200, 300, 400],
+            revenue: [200, 300, 400],
+            projectedProfits: [200, 300, 400, 600, 800, 1000],
+            breakEvenPoint: 800,
+          },
         };
 
         // Then add the thank you message

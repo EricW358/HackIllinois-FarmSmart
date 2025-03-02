@@ -20,6 +20,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useChat } from "../../../hooks/useChat";
 import { BlurView } from "expo-blur";
+import { FarmAnalyticsCharts } from "../../../components/FarmAnalyticsCharts";
 
 const { width } = Dimensions.get("window");
 
@@ -102,6 +103,9 @@ export default function ChatScreen() {
       >
         {message.content}
       </Text>
+      {message.analyticsData && (
+        <FarmAnalyticsCharts data={message.analyticsData} />
+      )}
       <Text
         style={[
           styles.timestamp,
