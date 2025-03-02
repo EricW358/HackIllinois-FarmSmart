@@ -407,15 +407,15 @@ const styles = StyleSheet.create({
   keyContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 10,
     marginTop: 5,
   },
   keyItem: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: 15,
-    marginBottom: 5,
+    margin: 5,
   },
   colorBox: {
     width: 15,
