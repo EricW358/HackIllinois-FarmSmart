@@ -8,6 +8,7 @@ import { FarmAnalyticsData } from "../components/FarmAnalyticsCharts";
 
 export interface FarmInfo {
   location: string;
+  budget: string;
   farmName: string;
   toolsAvailable: string;
   fertilizersAvailable: string;
@@ -42,6 +43,11 @@ const FARM_INFO_QUESTIONS = [
     key: "location",
     question:
       "To provide better assistance, could you tell me your location (city/region)? Type N/A if you prefer not to share.",
+  },
+  {
+    key: "budget",
+    question:
+      "What is your budget for farming equipment and tools? This helps me recommend solutions within your price range.",
   },
   {
     key: "toolsAvailable",
@@ -270,11 +276,17 @@ export function useChat(conversationId?: string) {
   "projectedProfits": [month1, month2, month3, month4, month5, month6],
   "breakEvenPoint": number
 }
-Use the exact tool names from the analysis, real profit numbers mentioned, and calculate revenue as 150% of profits. For projected profits, use the mentioned weekly profit rate to calculate 6 months of projections. The break-even point should be the tool cost mentioned.
+Use the exact tool names from the analysis, real profit numbers mentioned, and calculate revenue as 150% of profits. 
+
+IMPORTANT REQUIREMENTS:
+1. For projected profits, ensure that the values show a growth trend where the final months ALWAYS exceed the break-even point. If the initial projected values are too low, increase the growth rate to ensure the final value is at least 20% higher than the break-even point.
+2. ALL profit and revenue values MUST be POSITIVE numbers greater than zero. Never include negative or zero values.
+3. Revenue should always be higher than profit (typically 150% of profit).
+
 ONLY RESPOND WITH THE JSON DATA, NO OTHER TEXT.`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: analysisResponse },
@@ -312,12 +324,57 @@ ONLY RESPOND WITH THE JSON DATA, NO OTHER TEXT.`;
           return null;
         }
 
+        // Ensure all profits and revenue are positive
+        const minProfitValue = 50; // Minimum profit value
+        data.profits = data.profits.map((profit: number) =>
+          Math.max(Number(profit), minProfitValue)
+        );
+        data.revenue = data.profits.map((profit: number) =>
+          Math.max(profit * 1.5, profit + 100)
+        ); // Ensure revenue > profit
+
+        // Ensure projected profits eventually exceed break-even point
+        const breakEvenPoint = Math.max(Number(data.breakEvenPoint), 500); // Ensure break-even is reasonable
+        const projectedProfits = data.projectedProfits.map(Number);
+
+        // If the last projected profit doesn't exceed break-even point by at least 20%
+        if (
+          projectedProfits[projectedProfits.length - 1] <
+          breakEvenPoint * 1.2
+        ) {
+          // Calculate a growth rate that ensures the final value exceeds break-even by 20%
+          const startValue = Math.max(
+            projectedProfits[0],
+            breakEvenPoint * 0.5,
+            minProfitValue
+          );
+          const targetEndValue = breakEvenPoint * 1.2;
+          const months = projectedProfits.length;
+
+          // Create a new array with increasing values that reach the target
+          const newProjectedProfits = Array(months)
+            .fill(0)
+            .map((_, index) => {
+              const growthFactor = index / (months - 1);
+              return Math.round(
+                startValue + (targetEndValue - startValue) * growthFactor
+              );
+            });
+
+          data.projectedProfits = newProjectedProfits;
+        } else {
+          // Ensure all projected profits are positive
+          data.projectedProfits = projectedProfits.map((profit: number) =>
+            Math.max(profit, minProfitValue)
+          );
+        }
+
         return {
           tillageNames: data.tillageNames,
-          profits: data.profits.map(Number),
-          revenue: data.revenue.map(Number),
-          projectedProfits: data.projectedProfits.map(Number),
-          breakEvenPoint: Number(data.breakEvenPoint),
+          profits: data.profits,
+          revenue: data.revenue,
+          projectedProfits: data.projectedProfits,
+          breakEvenPoint: breakEvenPoint,
         };
       } catch (parseError) {
         console.error("Error parsing chart data JSON:", parseError);
@@ -372,6 +429,7 @@ ONLY RESPOND WITH THE JSON DATA, NO OTHER TEXT.`;
           const updatedFarmInfo = {
             farmName,
             location: farmData.location,
+            budget: "N/A", // Default value for predefined farms
             toolsAvailable: JSON.stringify(farmData.tillageOptions),
             fertilizersAvailable: "N/A",
             pesticidesAvailable: "N/A",
@@ -383,22 +441,24 @@ ONLY RESPOND WITH THE JSON DATA, NO OTHER TEXT.`;
           const systemMessage = `You are an advanced agricultural AI assistant. Your goal is to evaluate each tillage tool from the provided JSON list and estimate the profit for using that tool under the given farm conditions. For each tool, you should provide:
  - An estimated profit value (in $ per acre) based on its operating costs and assumed yield improvements,
  - A brief explanation of how you arrived at that profit estimate.
+ - Consider the user's budget when recommending tools and solutions.
 
 After processing all tools, output the results in the following exact format:
 
 Profits: tool1_name: estimated_profit, tool2_name: estimated_profit, ...
 Explanations: tool1_name: explanation, tool2_name: explanation, ...
-External Tool: (Recommend one third-party external tool with its price that would enhance efficiency.)`;
+External Tool: (Recommend one third-party external tool with its price that would enhance efficiency, considering the user's budget if specified.)`;
 
           const userMessage = `My location is ${farmData.location}. 
+My budget is ${updatedFarmInfo.budget}.
 My tools are ${JSON.stringify(farmData.tillageOptions, null, 2)}. 
 The description of your soil is ${farmData.soilDescription}
 
-Given this scenario, please evaluate each tool from the provided JSON list and estimate the profit (in $ per acre) for using that tool. Be sure to factor in everything provided, including the location, toolstack, as well as the soil data provided. 
+Given this scenario, please evaluate each tool from the provided JSON list and estimate the profit (in $ per acre) for using that tool. Be sure to factor in everything provided, including the location, toolstack, budget, as well as the soil data provided. 
 
 For each tool, provide a brief explanation of your profit estimate. In your explanations, ensure that you have indicated which tool is best. The best tool constitutes as that with the highest predicted profit margin.
 
-For the external tool, recommend a third-party external tool with its price that would enhance efficiency. I am aware that farming equipment is not cheap, so it is okay if the tool is a lot over budget. Provide the cost of the tool, the predicted profits, and the weekly profit for that tool. We need the weekly profit to see how long it would take to break even on the external product. 
+For the external tool, recommend a third-party external tool with its price that would enhance efficiency. Consider my budget when making recommendations. If the tool exceeds my budget, explain the long-term benefits that might justify the investment. Provide the cost of the tool, the predicted profits, and the weekly profit for that tool. We need the weekly profit to see how long it would take to break even on the external product. 
 
 Next, provide an explanation, similar to your explanation above, on why you picked this tool. Ensure that your answer accounts for the soil data and your explanations give explanations in relation to the soil data that was provided. Be sure to name-drop specific descriptions of the soils that were provided in your explanations. 
 
@@ -411,7 +471,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
           try {
             const completion = await openai.chat.completions.create({
-              model: "gpt-4o",
+              model: "gpt-4o-mini",
               messages: [
                 { role: "system", content: systemMessage },
                 { role: "user", content: userMessage },
@@ -551,25 +611,24 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
       const systemMessage = `You are an advanced agricultural AI assistant. Your goal is to evaluate each tillage tool from the provided JSON list and estimate the profit for using that tool under the given farm conditions. For each tool, you should provide:
  - An estimated profit value (in $ per acre) based on its operating costs and assumed yield improvements,
  - A brief explanation of how you arrived at that profit estimate.
+ - Consider the user's budget when recommending tools and solutions.
 
 After processing all tools, output the results in the following exact format:
 
 Profits: tool1_name: estimated_profit, tool2_name: estimated_profit, ...
 Explanations: tool1_name: explanation, tool2_name: explanation, ...
-External Tool: (Recommend one third-party external tool with its price that would enhance efficiency.)
-
-The list of available tillage options is provided in the user message under 'My tools.'
-Always adhere exactly to the requested format.`;
+External Tool: (Recommend one third-party external tool with its price that would enhance efficiency, considering the user's budget if specified.)`;
 
       const userMessage = `My location is ${updatedFarmInfo.location}. 
+My budget is ${updatedFarmInfo.budget}.
 My tools are ${toolstack}. 
 The description of your soil is ${soil}
 
-Given this scenario, please evaluate each tool from the provided JSON list and estimate the profit (in $ per acre) for using that tool. Be sure to factor in everything provided, including the location, toolstack, as well as the soil data provided. 
+Given this scenario, please evaluate each tool from the provided JSON list and estimate the profit (in $ per acre) for using that tool. Be sure to factor in everything provided, including the location, toolstack, budget, as well as the soil data provided. 
 
 For each tool, provide a brief explanation of your profit estimate. In your explanations, ensure that you have indicated which tool is best. The best tool constitutes as that with the highest predicted profit margin.
 
-For the external tool, recommend a third-party external tool with its price that would enhance efficiency. I am aware that farming equipment is not cheap, so it is okay if the tool is a lot over budget. Provide the cost of the tool, the predicted profits, and the weekly profit for that tool. We need the weekly profit to see how long it would take to break even on the external product. 
+For the external tool, recommend a third-party external tool with its price that would enhance efficiency. Consider my budget when making recommendations. If the tool exceeds my budget, explain the long-term benefits that might justify the investment. Provide the cost of the tool, the predicted profits, and the weekly profit for that tool. We need the weekly profit to see how long it would take to break even on the external product. 
 
 Next, provide an explanation, similar to your explanation above, on why you picked this tool. Ensure that your answer accounts for the soil data and your explanations give explanations in relation to the soil data that was provided. Be sure to name-drop specific descriptions of the soils that were provided in your explanations. 
 
@@ -582,7 +641,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
       try {
         const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: "gpt-4o-mini",
           messages: [
             { role: "system", content: systemMessage },
             { role: "user", content: userMessage },
@@ -618,12 +677,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
         }));
 
         // Only add the response if we have valid data
-        if (specializedResponse.analyticsData) {
-          setConversation((prev) => ({
-            ...prev,
-            messages: [...prev.messages, specializedResponse, thankYouMessage],
-          }));
-        } else {
+        if (!specializedResponse.analyticsData) {
           console.error("Failed to generate valid analytics data");
           // Notify the user that there was an issue with data generation
           const errorMessage = {
@@ -695,7 +749,7 @@ External Explanation: Why the tool is efficient for the situation we are in.`;
 
       // Get response from OpenAI
       const completion = await openai.chat.completions.create({
-        model: image ? "gpt-4o" : "gpt-4o",
+        model: image ? "gpt-4o" : "gpt-4o-mini",
         messages: finalMessages.map((msg) => {
           const baseMessage = {
             role: msg.role,

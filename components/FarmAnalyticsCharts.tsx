@@ -1,18 +1,26 @@
 import React, { useState } from "react";
 import {
   View,
-  Dimensions,
   StyleSheet,
   TouchableWithoutFeedback,
+  useWindowDimensions,
+  LayoutChangeEvent,
 } from "react-native";
 import { Surface, useTheme, Text } from "react-native-paper";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
+import ChartWrapper from "./ChartWrapper";
 
-const { width } = Dimensions.get("window");
-const CHART_WIDTH = width * 0.75; // 75% of screen width to fit in message bubble
-const CHART_HEIGHT = 180; // Reduced height
-const BAR_CHART_WIDTH = CHART_WIDTH * 0.65; // Increased to 65% of chart width for bar chart
-const PIE_CHART_WIDTH = CHART_WIDTH * 0.35; // Reduced to 35% of chart width for pie chart
+// Use dynamic sizing based on container width rather than fixed screen percentage
+const getChartDimensions = (containerWidth: number) => {
+  // Use the full container width for charts with minimal padding
+  const CHART_WIDTH = Math.min(containerWidth - 8, 600); // Increased max width and reduced padding
+  const CHART_HEIGHT = 220; // Keep the same height
+
+  // Calculate half width for side-by-side charts (accounting for gap)
+  const HALF_CHART_WIDTH = Math.floor((CHART_WIDTH - 6) / 2);
+
+  return { CHART_WIDTH, CHART_HEIGHT, HALF_CHART_WIDTH };
+};
 
 export interface FarmAnalyticsData {
   tillageNames: string[];
@@ -31,8 +39,22 @@ interface TooltipData {
 
 export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
   const theme = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
+  const [containerWidth, setContainerWidth] = useState(windowWidth - 64); // Default with padding
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [tooltipData, setTooltipData] = useState<TooltipData | null>(null);
+
+  // Get responsive chart dimensions based on measured container width
+  const { CHART_WIDTH, CHART_HEIGHT, HALF_CHART_WIDTH } =
+    getChartDimensions(containerWidth);
+
+  // Measure the actual container width when layout changes
+  const onContainerLayout = (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    if (width > 0 && width !== containerWidth) {
+      setContainerWidth(width);
+    }
+  };
 
   // Base colors with good contrast
   const baseColors = [
@@ -72,24 +94,24 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
     backgroundGradientTo: theme.colors.surface,
     color: (opacity = 1) => chartColors[0],
     labelColor: (opacity = 1) => theme.colors.onSurface,
-    strokeWidth: 2,
-    barPercentage: 0.9,
-    spacing: 0.05,
-    barRadius: 0,
+    strokeWidth: 3,
+    barPercentage: 0.95, // Increased from 0.9
+    spacing: 0.02, // Reduced from 0.05
+    barRadius: 4,
     useShadowColorFromDataset: false,
     decimalPlaces: 0,
     propsForLabels: {
-      fontSize: 12,
+      fontSize: 10, // Reduced font size for better fit in side-by-side layout
     },
     propsForVerticalLabels: {
-      fontSize: 12,
+      fontSize: 10, // Reduced font size
     },
     propsForHorizontalLabels: {
-      fontSize: 12,
+      fontSize: 10, // Reduced font size
     },
     formatYLabel: (value: string) => `$${value}`,
     propsForDots: {
-      r: "6",
+      r: "5",
       strokeWidth: "2",
       stroke: theme.colors.surface,
     },
@@ -118,7 +140,7 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onContainerLayout}>
       <Surface style={[styles.chartCard, styles.keyCard]}>
         <Text style={styles.chartTitle}>Color Key</Text>
         <View style={styles.keyContainer}>
@@ -135,34 +157,40 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
           ))}
         </View>
       </Surface>
-      <View style={styles.rowContainer}>
-        <Surface style={[styles.chartCard, styles.barChartCard]}>
+
+      {/* Bar chart and Pie chart side by side */}
+      <View style={styles.chartsRow}>
+        <Surface style={[styles.chartCard, styles.halfWidthCard]}>
           <Text style={styles.chartTitle}>Profit by Tillage Method</Text>
           <View style={styles.chartContainer}>
-            <BarChart
-              {...commonProps}
-              width={BAR_CHART_WIDTH}
-              data={{
-                labels: data.tillageNames.map(
-                  (name) => name.split(" ").pop() || name
-                ),
-                datasets: [
-                  {
-                    data: data.profits,
-                    colors: chartColors.map((color) => () => color),
-                  },
-                ],
-              }}
-              height={CHART_HEIGHT}
-              yAxisLabel="$"
-              verticalLabelRotation={30}
-              showValuesOnTopOfBars
-              withCustomBarColorFromData
-              flatColor
-              fromZero
-              segments={4}
-              style={styles.chart}
-            />
+            <ChartWrapper>
+              <BarChart
+                {...commonProps}
+                width={HALF_CHART_WIDTH * 1.75}
+                data={{
+                  labels: data.tillageNames.map(
+                    (name) => name.split(" ").pop() || name
+                  ),
+                  datasets: [
+                    {
+                      data: data.profits,
+                      colors: chartColors.map((color) => () => color),
+                    },
+                  ],
+                }}
+                height={CHART_HEIGHT}
+                yAxisLabel="$"
+                verticalLabelRotation={45}
+                showValuesOnTopOfBars
+                withCustomBarColorFromData
+                flatColor
+                fromZero
+                segments={4}
+                style={styles.chart}
+                withHorizontalLabels={true}
+                horizontalLabelRotation={0}
+              />
+            </ChartWrapper>
             <Text style={styles.xAxisLabel}>Tillage Method</Text>
             <Text style={styles.yAxisLabel}>Profit ($)</Text>
             {tooltipData && (
@@ -186,26 +214,29 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
           </View>
         </Surface>
 
-        <Surface style={[styles.chartCard, styles.pieChartCard]}>
+        <Surface style={[styles.chartCard, styles.halfWidthCard]}>
           <Text style={styles.chartTitle}>Profit Distribution</Text>
           <View style={styles.pieChartContainer}>
             <View style={styles.pieChartWrapper}>
-              <PieChart
-                {...commonProps}
-                width={PIE_CHART_WIDTH}
-                height={CHART_HEIGHT + 70}
-                data={data.tillageNames.map((name, index) => ({
-                  name: `${name.split(" ").pop() || name}`,
-                  population: data.profits[index],
-                  color: chartColors[index],
-                }))}
-                accessor="population"
-                backgroundColor="transparent"
-                absolute
-                hasLegend={false}
-                center={[PIE_CHART_WIDTH / 2.25, CHART_HEIGHT / 80]}
-                paddingLeft="-75"
-              />
+              <ChartWrapper>
+                <PieChart
+                  {...commonProps}
+                  width={HALF_CHART_WIDTH * 1.5}
+                  height={CHART_HEIGHT * 1.2}
+                  data={data.tillageNames.map((name, index) => ({
+                    name: `${name.split(" ").pop() || name}`,
+                    population: data.profits[index],
+                    color: chartColors[index],
+                    legendFontSize: 12,
+                  }))}
+                  accessor="population"
+                  backgroundColor="transparent"
+                  absolute
+                  hasLegend={false}
+                  center={[HALF_CHART_WIDTH * 0.55, CHART_HEIGHT * 0.001]}
+                  style={styles.chart}
+                />
+              </ChartWrapper>
             </View>
           </View>
         </Surface>
@@ -214,31 +245,35 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
       <Surface style={styles.chartCard}>
         <Text style={styles.chartTitle}>Revenue vs Profit Over Time</Text>
         <View style={styles.chartContainer}>
-          <LineChart
-            {...commonProps}
-            data={{
-              labels: ["1", "2", "3"],
-              datasets: [
-                {
-                  data: data.revenue,
-                  color: (opacity = 1) => "rgba(6, 79, 240, 1)",
-                  strokeWidth: 2,
-                },
-                {
-                  data: data.profits,
-                  color: (opacity = 1) => "rgba(255, 48, 48, 1)",
-                  strokeWidth: 2,
-                },
-              ],
-              legend: ["Revenue", "Profit"],
-            }}
-            bezier
-            style={styles.chart}
-          />
+          <ChartWrapper>
+            <LineChart
+              {...commonProps}
+              width={CHART_WIDTH * 1.85}
+              height={CHART_HEIGHT}
+              data={{
+                labels: ["1", "2", "3"],
+                datasets: [
+                  {
+                    data: data.revenue,
+                    color: (opacity = 1) => "rgba(6, 79, 240, 1)",
+                    strokeWidth: 2,
+                  },
+                  {
+                    data: data.profits,
+                    color: (opacity = 1) => "rgba(255, 48, 48, 1)",
+                    strokeWidth: 2,
+                  },
+                ],
+                legend: ["Revenue", "Profit"],
+              }}
+              bezier
+              style={styles.chart}
+            />
+          </ChartWrapper>
           <Text style={styles.xAxisLabel}>Time Period</Text>
           <Text style={styles.yAxisLabel}>Amount ($)</Text>
           {tooltipData && (
-            <View style={[styles.tooltip, { top: CHART_HEIGHT / 2 - 40 }]}>
+            <View style={[styles.tooltip, { top: 50 }]}>
               <Text style={styles.tooltipText}>
                 {`Revenue: $${data.revenue[tooltipData.index]}\nProfit: $${
                   data.profits[tooltipData.index]
@@ -254,32 +289,36 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
           Projected Profits and Break-even Point
         </Text>
         <View style={styles.chartContainer}>
-          <LineChart
-            {...commonProps}
-            data={{
-              labels: ["1", "2", "3", "4", "5", "6"],
-              datasets: [
-                {
-                  data: data.projectedProfits,
-                  color: (opacity = 1) => "rgba(6, 79, 240, 1)",
-                  strokeWidth: 2,
-                },
-                {
-                  data: Array(6).fill(data.breakEvenPoint),
-                  color: (opacity = 1) => "rgba(255, 48, 48, 1)",
-                  strokeWidth: 2,
-                  withDots: false,
-                },
-              ],
-              legend: ["Expected Profit", "Break-even"],
-            }}
-            bezier
-            style={styles.chart}
-          />
+          <ChartWrapper>
+            <LineChart
+              {...commonProps}
+              width={CHART_WIDTH * 1.85}
+              height={CHART_HEIGHT}
+              data={{
+                labels: ["1", "2", "3", "4", "5", "6"],
+                datasets: [
+                  {
+                    data: data.projectedProfits,
+                    color: (opacity = 1) => "rgba(6, 79, 240, 1)",
+                    strokeWidth: 2,
+                  },
+                  {
+                    data: Array(6).fill(data.breakEvenPoint),
+                    color: (opacity = 1) => "rgba(255, 48, 48, 1)",
+                    strokeWidth: 2,
+                    withDots: false,
+                  },
+                ],
+                legend: ["Expected Profit", "Break-even"],
+              }}
+              bezier
+              style={styles.chart}
+            />
+          </ChartWrapper>
           <Text style={styles.xAxisLabel}>Time Period</Text>
           <Text style={styles.yAxisLabel}>Amount ($)</Text>
           {tooltipData && (
-            <View style={[styles.tooltip, { top: CHART_HEIGHT / 2 - 40 }]}>
+            <View style={[styles.tooltip, { top: 50 }]}>
               <Text style={styles.tooltipText}>
                 {`Expected: $${
                   data.projectedProfits[tooltipData.index]
@@ -295,24 +334,40 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 8,
-    gap: 12,
+    padding: 2, // Further reduced padding
+    gap: 6, // Further reduced gap
+    width: "100%",
+    maxWidth: "100%",
+  },
+  chartsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    gap: 6,
+  },
+  halfWidthCard: {
+    flex: 1,
+    minWidth: "48%",
   },
   chartCard: {
     borderRadius: 8,
-    padding: 8,
+    padding: 6, // Reduced padding
     elevation: 2,
-    marginVertical: 4,
+    marginVertical: 3, // Reduced margin
+    width: "100%",
   },
   chart: {
-    marginVertical: 4,
+    marginVertical: 2, // Reduced margin
     borderRadius: 8,
+    alignSelf: "center",
+    width: "100%", // Ensure chart takes full width
   },
   chartContainer: {
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: 35, // Add space for y-axis label
+    marginLeft: 25, // Reduced from 35 to give more horizontal space
+    width: "100%", // Ensure container takes full width
   },
   tooltip: {
     position: "absolute",
@@ -340,35 +395,25 @@ const styles = StyleSheet.create({
   },
   yAxisLabel: {
     position: "absolute",
-    left: -35,
-    top: CHART_HEIGHT / 2,
+    left: -25, // Reduced from -35
+    top: "50%",
     transform: [{ rotate: "-90deg" }],
     fontSize: 12,
-  },
-  rowContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  barChartCard: {
-    flex: 0.65,
-  },
-  pieChartCard: {
-    flex: 0.35,
-    minHeight: CHART_HEIGHT + 20,
   },
   pieChartContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingRight: 8,
-    marginLeft: 0,
-    marginTop: 0,
-    overflow: "visible",
-    minHeight: CHART_HEIGHT + 20,
+    paddingVertical: 10,
+    width: "100%",
+    overflow: "visible", // Allow the chart to overflow its container
+    height: 264, // Fixed height (220 * 1.2)
   },
   pieChartWrapper: {
     position: "relative",
+    width: "100%",
+    height: "100%",
     alignItems: "center",
+    justifyContent: "center",
   },
   keyCard: {
     marginBottom: 10,
