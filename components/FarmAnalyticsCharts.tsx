@@ -203,21 +203,9 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
                 backgroundColor="transparent"
                 absolute
                 hasLegend={false}
-                center={[PIE_CHART_WIDTH / 2.25, CHART_HEIGHT / 12.2]}
+                center={[PIE_CHART_WIDTH / 2.25, CHART_HEIGHT / 80]}
                 paddingLeft="-75"
               />
-              <View style={styles.pieLabels}>
-                {data.tillageNames.map((name, index) => (
-                  <Text
-                    key={index}
-                    style={[styles.pieLabel, { color: chartColors[index] }]}
-                  >
-                    {`${name.split(" ").pop() || name}: $${
-                      data.profits[index]
-                    }`}
-                  </Text>
-                ))}
-              </View>
             </View>
           </View>
         </Surface>
@@ -367,38 +355,20 @@ const styles = StyleSheet.create({
   },
   pieChartCard: {
     flex: 0.35,
-    minHeight: CHART_HEIGHT + 120,
+    minHeight: CHART_HEIGHT + 20,
   },
   pieChartContainer: {
     alignItems: "center",
     justifyContent: "center",
     paddingRight: 8,
     marginLeft: 0,
-    marginTop: -40,
+    marginTop: 0,
     overflow: "visible",
-    minHeight: CHART_HEIGHT + 120,
+    minHeight: CHART_HEIGHT + 20,
   },
   pieChartWrapper: {
     position: "relative",
     alignItems: "center",
-  },
-  pieLabels: {
-    position: "absolute",
-    bottom: 0,
-    right: 8,
-    backgroundColor: "transparent",
-    padding: 8,
-    borderRadius: 4,
-    maxWidth: PIE_CHART_WIDTH,
-  },
-  pieLabel: {
-    fontSize: 11,
-    marginVertical: 2,
-    textAlign: "right",
-    fontWeight: "600",
-    textShadowColor: "rgba(0, 0, 0, 0.75)",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
   keyCard: {
     marginBottom: 10,
