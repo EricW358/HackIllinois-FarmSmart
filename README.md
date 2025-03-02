@@ -4,6 +4,27 @@ FarmSmart is an AI-powered farming assistant application designed to help farmer
 
 ![FarmSmart Logo](assets/farm_smart_transparent.png)
 
+## Application Screenshots
+
+<div align="center">
+  <img src="assets/ChatBotUI.png" alt="Chat Interface" width="300"/>
+  <p><em>AI Chat Assistant Interface</em></p>
+  
+  <img src="assets/ChatExample.png" alt="Chat Example" width="300"/>
+  <p><em>Example Conversation with AI Assistant</em></p>
+  
+  <div style="display: flex; justify-content: space-between;">
+    <div>
+      <img src="assets/GraphExample1.png" alt="Analytics Graph 1" width="400"/>
+      <p><em>Farm Analytics Dashboard</em></p>
+    </div>
+    <div>
+      <img src="assets/GraphExample2.png" alt="Analytics Graph 2" width="400"/>
+      <p><em>Crop Yield Projections</em></p>
+    </div>
+  </div>
+</div>
+
 ## Features
 
 - **AI Chat Assistant**: Get instant answers to farming questions, crop management advice, and agricultural best practices
@@ -134,9 +155,15 @@ FarmSmart/
 
 The chat interface allows users to interact with the AI assistant by typing questions or uploading images. The assistant provides responses formatted with markdown for readability.
 
+![Chat Interface Example](assets/ChatBotUI.png)
+
 Special commands:
 
 - `@plot [address]` - Displays a satellite map of the specified address
+
+Example conversation with the AI assistant:
+
+![Chat Conversation Example](assets/ChatExample.png)
 
 ### Farm Analytics
 
@@ -146,6 +173,14 @@ The analytics feature provides visual representations of farm data, including:
 - Profit projections
 - Cost analysis
 - Growth trends
+
+Farm analytics dashboard:
+
+![Analytics Dashboard](assets/GraphExample1.png)
+
+Detailed crop yield projections:
+
+![Crop Yield Projections](assets/GraphExample2.png)
 
 ### Satellite Mapping
 
