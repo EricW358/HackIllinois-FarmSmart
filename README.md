@@ -2,7 +2,7 @@
 
 FarmSmart is an AI-powered farming assistant application designed to help farmers optimize crop management, access weather insights, and implement agricultural best practices. The application provides personalized recommendations, analytics, and a chat interface for interacting with the AI assistant.
 
-![FarmSmart Logo](assets/farmsmart-logo.png)
+![FarmSmart Logo](assets/farm_smart_transparent.png)
 
 ## Features
 

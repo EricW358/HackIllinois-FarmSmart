@@ -1,4 +1,5 @@
 const createExpoWebpackConfigAsync = require("@expo/webpack-config");
+const path = require("path");
 
 module.exports = async function (env, argv) {
   const config = await createExpoWebpackConfigAsync(
@@ -8,6 +9,9 @@ module.exports = async function (env, argv) {
         dangerouslyAddModulePathsToTranspile: [
           "@expo/webpack-config/web-default/index.html",
         ],
+      },
+      template: {
+        templatePath: path.resolve(__dirname, "web/index.html"),
       },
     },
     argv
