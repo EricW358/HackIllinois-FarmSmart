@@ -119,6 +119,22 @@ export const FarmAnalyticsCharts = ({ data }: { data: FarmAnalyticsData }) => {
 
   return (
     <View style={styles.container}>
+      <Surface style={[styles.chartCard, styles.keyCard]}>
+        <Text style={styles.chartTitle}>Color Key</Text>
+        <View style={styles.keyContainer}>
+          {data.tillageNames.map((name, index) => (
+            <View key={index} style={styles.keyItem}>
+              <View
+                style={[
+                  styles.colorBox,
+                  { backgroundColor: chartColors[index] },
+                ]}
+              />
+              <Text style={styles.keyText}>{name}</Text>
+            </View>
+          ))}
+        </View>
+      </Surface>
       <View style={styles.rowContainer}>
         <Surface style={[styles.chartCard, styles.barChartCard]}>
           <Text style={styles.chartTitle}>Profit by Tillage Method</Text>
@@ -383,5 +399,31 @@ const styles = StyleSheet.create({
     textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  keyCard: {
+    marginBottom: 10,
+    padding: 15,
+  },
+  keyContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-start",
+    gap: 10,
+    marginTop: 5,
+  },
+  keyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 15,
+    marginBottom: 5,
+  },
+  colorBox: {
+    width: 15,
+    height: 15,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  keyText: {
+    fontSize: 12,
   },
 });
