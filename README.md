@@ -1,4 +1,4 @@
-# FarmSmart
+# FarmSmart (First Place Hack Illinois AGCO track (LLM Chatbot for Ag Ops Planning))
 
 FarmSmart is an AI-powered farming assistant application designed to help farmers optimize crop management, access weather insights, and implement agricultural best practices. The application provides personalized recommendations, analytics, and a chat interface for interacting with the AI assistant.
 
